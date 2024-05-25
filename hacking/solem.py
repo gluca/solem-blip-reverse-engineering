@@ -1,8 +1,7 @@
 import struct
 import binascii
+import time
 from bluepy import btle
-
-
 '''
 Identified commands
 --------------------------------
@@ -43,21 +42,62 @@ class BLIPNotification(btle.DefaultDelegate):
 
 def handleNotifications(per, wait):
     while wait:
-        if per.waitForNotifications(1.0):
+        if per.waitForNotifications(0.3):
             # handleNotification() was called
             continue
-        print("Waiting...")
-        wait = wait - 1
+        else:
+            print("Waiting...")
+            wait = wait - 1
+
+
+def irrigatorOn():
+    return struct.pack(">HBHH",0x3105,0xa0,0x0001,0x0000)
+
+def irrigatorOff():
+    return struct.pack(">HBHH",0x3105,0xc0,0x0000,0x0000)
+
+def stopWatering():
+    return struct.pack(">HBHH",0x3105,0x15,0x00ff,0x0000)
+
+def commit():
+    return struct.pack(">H",0x3b00)
+
+def irrigatorOffDays(days):
+    return struct.pack(">HBHH",0x3105,0xc0,days,0x0000)
+
+def startWateringAll(minutes):
+    secs=minutes*60
+    return struct.pack(">HBHH",0x3105,0x11,0x0000,secs)
+
+def startWatering(station,minutes):
+    secs=minutes*60
+    return struct.pack(">HBBBH",0x3105,0x12,station,0x00,secs)
+
+def runProgram(program):
+    return struct.pack(">HBHH",0x3105,0x14,program,0x0000)
+
+def resilientConnect(address, retries):
+    global per
+    while retries:
+        try:
+            per=btle.Peripheral(address,btle.ADDR_TYPE_RANDOM)
+            return True
+        except btle.BTLEException as e:
+            print(f"BLE Exception:", e)
+            retries = retries - 1
+            if retries > 0:
+                time.sleep(3)
+    return False
 
 per = btle.Peripheral()
 
-#C8:B9:61:06:69:96
 try:
-    bytes = b'0x00'
-    per = btle.Peripheral("C8:B9:61:06:69:96", btle.ADDR_TYPE_RANDOM)
-    
-
-    characteristics = per.getCharacteristics()    
+    if not resilientConnect("C8:B9:61:0A:47:FD",10):
+        print(f"Failed to connect")
+        exit
+    print(f"Connected to Solem")
+    characteristics = per.getCharacteristics()
+    print(f"charachteristics read")
     for characteristic in characteristics:
         print("{}, hnd={}, supports {}".format(characteristic, hex(characteristic.handle), characteristic.propertiesToString()))
         #if characteristic.uuid == '00002a04-0000-1000-8000-00805f9b34fb':
@@ -74,33 +114,20 @@ try:
 
     # Setup to turn notifications on, e.g.
     per.writeCharacteristic(characteristicNotify.getHandle()+1, b"\x01\x00")
-    
-    
-    #0x31051201000294 - stop any manual watering program
-    print("writing command")
-    characteristicWrite.write(struct.pack(">HBBBH",0x3105,0x12,0x01,0x00,0x0294))
+
+    #3105-15-00ff-0000 - stop any manual watering program
+    print(f"writing command")
+    characteristicWrite.write(stopWatering())
     handleNotifications(per, 1)
-    print("committing")
-    characteristicWrite.write(struct.pack(">BB",0x3b,0x00))
-    handleNotifications(per, 1)
+    print(f"committing")
+    characteristicWrite.write(commit())
+    handleNotifications(per, 3)
+    
     
 except btle.BTLEException as e:
-    print("BLE Exception:", e)
+    print(f"BLE Exception:", e)
 
 finally:
     per.disconnect() 
-
-
-""" 
-characteristics = dev.getCharacteristics()
-print("Got",len(characteristics),"characteristic objects")
-
-for characteristic in characteristics:
-    print("{}, hnd={}, supports {}".format(characteristic, hex(characteristic.handle), characteristic.propertiesToString()))
-    print('uuid = {}', characteristic.uuid)
-    if characteristic.uuid == '00002a04-0000-1000-8000-00805f9b34fb':
-        bytes = characteristic.read()
-        #test = struct.unpack('BBBBBB', bytes)
-        print("Read {}", bytes)
-"""
-
+    print(f"Done.")
+s
