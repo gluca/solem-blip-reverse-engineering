@@ -53,7 +53,7 @@ characteristicWrite.write(struct.pack(">BB",0x3b,0x00))
 
 #3105-11-0000-XXXX - all stations 7 min
 print("writing command")
-characteristicWrite.write(struct.pack(">HBBBH",0x3105,0x11,0x00,0x00,0x6270))
+characteristicWrite.write(struct.pack(">HBBBH",0x3105,0x11,0x00,0x00,0x01A4))
 print("committing")
 characteristicWrite.write(struct.pack(">BB",0x3b,0x00))
 
